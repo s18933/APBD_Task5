@@ -1,0 +1,30 @@
+create procedure PromoteStudents (@Name varchar(100), @Semester int)
+AS
+BEGIN 
+	SET XACT_ABORT ON;
+	BEGIN TRAN
+		DECLARE @IdStudy INT = (SELECT IdStudy from Studies WHERE Name = @Name);
+		IF @IdStudy IS NULL OR NOT EXISTS (SELECT IdEnrollment FROM Enrollment WHERE Semester= @Semester) 
+							OR NOT EXISTS (SELECT IdStudy fROM Enrollment WHERE IdStudy=@IdStudy)
+			BEGIN
+				RAISERROR (15600,-1,-1, 'ERROR 404 NOT FOUND');  
+			END;
+		DECLARE @IdNextEnrollment INT = (SELECT DISTINCT IdEnrollment From Enrollment WHERE IdStudy = (@IdStudy+1) AND Semester = (@Semester+1));
+		IF @IdNextEnrollment IS NULL
+			BEGIN
+				INSERT INTO Enrollment (IdEnrollment, Semester, IdStudy, StartDate) VALUES ((select MAX(IdEnrollment) FROM Enrollment)+1, @Semester + 1, @IdStudy +1, GETDATE());
+				SET @IdNextEnrollment = (SELECT MAX(IdEnrollment) From Enrollment);
+			END;
+
+			ALTER TABLE Student
+			DROP Constraint Student_Enrollment
+
+			UPDATE STUDENT
+			Set IdEnrollment = @IdNextEnrollment from Student where IdEnrollment IN (Select IdEnrollment from Enrollment where Student.IdEnrollment = Enrollment.IdEnrollment and Semester = 1);
+			ALTER TABLE Student ADD CONSTRAINT Student_Enrollment
+			FOREIGN KEY (IdEnrollment)
+			REFERENCES Enrollment (IdEnrollment);
+		COMMIT
+END;
+--drop procedure PromoteStudents1
+EXEC PromoteStudents 'IT',1;
